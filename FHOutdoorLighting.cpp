@@ -27,7 +27,12 @@
 /*
 	ABOUT
 
-	This is the main module for a front of house lighting project
+	This is the main module for a front of house lighting project.
+
+	To a degree this follows the model view controller pattern. 
+	Model: The time of day(broken up into daytime, night, and late night), date, motion sensor state, luminosity, and a push button toggle state
+	View: The RGB value of each LED and the LED transformer state
+	Controller: Determines the view based on the model
 */
 
 #include <ELModule.h>
@@ -42,7 +47,6 @@
 // for testing
 	#define DMAMEM
 	#define WS2811_RGB 1
-	#define WS2811_400kHz 2
 
 	class OctoWS2811
 	{
@@ -96,18 +100,16 @@ enum
 	eLEDsPerPanel = 38,				// This is the number of leds per panel
 	eLEDPanelsCenterToRight = 4,	// This is the number of panels on the right side of the house roof (control system is at top center of the gable roof)
 	eLEDPanelsCenterToLeft = 6,		// This is the number of panels on the left side of the house roof (control system is at top center of the gable roof)
-
-	eLEDStripCenterToRight = 3,		// This is the Octo strip number that goes from the center towards the right
-	eLEDStripCenterToLeft = 0,		// This is the Octo strip number that goes from the center towards the left
-
 	eLEDsPerStrip = eLEDPanelsCenterToLeft * eLEDsPerPanel,	// The total leds per strip is the max of the two strips in use
-
-	eMotionTripLightsOffSecs = 15 * 60,	// How long to keep the lights on after motion sensor trip has gone off
-	eLateNightTimeoutSecs = 20 * 60,	// How long to keep the lights on after a toggle on during late night
-
 	eLEDCount = ePanelCount * eLEDsPerPanel,	// The total number of leds across the roof
 
-	eMaxPatternCount = 10,	// maximum number of led patterns
+	eLEDStripCenterToRight = 3,		// This is the Octo strip number (starting from 0) that goes from the center towards the right
+	eLEDStripCenterToLeft = 0,		// This is the Octo strip number (starting from 0) that goes from the center towards the left
+
+	eMotionTripLightsOffSecs = 15 * 60,	// How long to keep the lights on after motion sensor trip has gone off
+	eLateNightTimeoutSecs = 20 * 60,	// How long to keep the lights on after a toggle on event during late night
+
+	eMaxPatternCount = 10,		// maximum number of led patterns
 
 	eToggleCountResetMS = 1000,	// The time in ms to reset the pushbutton toggle count
 	eCyclePatternsCount = 3,	// The number of pushes to trigger the cycling of the holiday base patterns
@@ -121,9 +123,9 @@ enum
 
 enum
 {
-	eMode_Normal,
-	eMode_CyclePatterns,
-	eMode_TestPattern,
+	eViewMode_Normal,
+	eViewMode_CyclePatterns,
+	eViewMode_TestPattern,
 };
 
 enum
@@ -149,12 +151,21 @@ struct SFloatPixel
 	float	r, g, b;
 };
 
-// A SDateRange is used to specify potentially multiple dates (for Easter) for a base pattern 
+// A SDateRange is used to specify potentially multiple dates (ex Easter) for a base pattern 
 struct SDateRange
 {
 	int	year;					// -1 means any year
 	int	firstMonth, firstDay;	// the first month and day the pattern should be applied
-	int	lastMonth, lastDay;		// the last day (inclusive) the pattern should be applied
+	int	lastMonth, lastDay;		// the last month and day (inclusive) the pattern should be applied
+};
+
+struct SSettings
+{
+	SFloatPixel	defaultColor;
+	float		defaultIntensity;
+	float		activeIntensity;
+	int			turnOffHour;
+	int			turnOffMin;
 };
 
 // Patterns inherit from CBasePattern
@@ -221,7 +232,7 @@ public:
 };
 static CXMasPattern	gXMasPattern;
 
-SDateRange	gValintineDateRange[1] = {-1, 2, 14, 2, 14};
+SDateRange	gValintineDateRange[] = {-1, 2, 14, 2, 14};
 class CValintinePattern : public CBasePattern
 {
 public:
@@ -250,7 +261,7 @@ public:
 };
 static CValintinePattern	gValintinePattern;
 
-SDateRange	gJuly4DateRange[1] = {-1, 7, 3, 7, 4};
+SDateRange	gJuly4DateRange[] = {-1, 7, 3, 7, 4};
 class CJuly4Pattern : public CBasePattern
 {
 public:
@@ -295,7 +306,7 @@ public:
 };
 static CJuly4Pattern	gJuly4Pattern;
 
-SDateRange	gHolloweenDateRange[1] = {-1, 10, 30, 10, 31};
+SDateRange	gHolloweenDateRange[] = {-1, 10, 30, 10, 31};
 class CHolloweenPattern : public CBasePattern
 {
 public:
@@ -333,7 +344,7 @@ public:
 };
 static CHolloweenPattern	gHolloweenPattern;
 
-SDateRange	gStPattyDateRange[1] = {-1, 3, 16, 3, 17};
+SDateRange	gStPattyDateRange[] = {-1, 3, 16, 3, 17};
 class CStPattyPattern : public CBasePattern
 {
 public:
@@ -477,7 +488,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		:
 		CModule(
 			"otdr",
-			sizeof(SFloatPixel),
+			sizeof(SSettings),
 			0,
 			30000),
 		leds(eLEDsPerStrip, gLEDDisplayMemory, gLEDDrawingMemory, WS2811_RGB)
@@ -507,7 +518,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		ds3234Provider = gRealTime->CreateDS3234Provider(10);
 		gRealTime->SetProvider(ds3234Provider, 24 * 60 * 60);
 
-		LoadDataFromEEPROM(&defaultColor, eepromOffset, sizeof(defaultColor));
+		LoadDataFromEEPROM(&settings, eepromOffset, sizeof(settings));
 
 		#if defined(WIN32)
 		// For testing
@@ -517,12 +528,17 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		// Register the alarms, events, and commands
 		gSunRiseAndSet->RegisterSunsetEvent("Sunset1", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, this, static_cast<TSunRiseAndSetEventMethod>(&COutdoorLightingModule::Sunset));
 		gSunRiseAndSet->RegisterSunriseEvent("Sunrise1", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, this, static_cast<TSunRiseAndSetEventMethod>(&COutdoorLightingModule::Sunrise));
-		gRealTime->RegisterAlarm("LateNightAlarm", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, 23, 0, 0, this, static_cast<TRealTimeAlarmMethod>(&COutdoorLightingModule::LateNightAlarm), NULL);
+		gRealTime->RegisterAlarm("LateNightAlarm", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, settings.turnOffHour, settings.turnOffMin, 0, this, static_cast<TRealTimeAlarmMethod>(&COutdoorLightingModule::LateNightAlarm), NULL);
 		gDigitalIO->RegisterEventHandler(eToggleButtonPin, false, this, static_cast<TDigitalIOEventMethod>(&COutdoorLightingModule::ButtonPush), NULL, 100);
 		gDigitalIO->RegisterEventHandler(eMotionSensorPin, false, this, static_cast<TDigitalIOEventMethod>(&COutdoorLightingModule::MotionSensorTrigger), NULL);
-		gSerialCmd->RegisterCommand("force", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::ForceOnOff));
+		gSerialCmd->RegisterCommand("set_toggle", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetToggleState));
 		gSerialCmd->RegisterCommand("test_pattern", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::TestPattern));
 		gSerialCmd->RegisterCommand("set_color", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetColor));
+		gSerialCmd->RegisterCommand("get_color", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetColor));
+		gSerialCmd->RegisterCommand("set_intensity", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetIntensity));
+		gSerialCmd->RegisterCommand("get_intensity", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetIntensity));
+		gSerialCmd->RegisterCommand("set_offtime", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetOffTime));
+		gSerialCmd->RegisterCommand("get_offtime", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetOffTime));
 
 		gLuminositySensor->SetMinMaxLux(30.0, 1500, false);
 
@@ -544,9 +560,8 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		gRealTime->GetComponentsFromEpochTime(sunsetTime, eventYear, eventMonth, eventDay, eventDOW, eventHour, eventMin, eventSec);
 		DebugMsg(eDbgLevel_Basic, "sunset time is %02d/%02d/%04d %02d:%02d:%02d\n", eventMonth, eventDay, eventYear, eventHour, eventMin, eventSec);
 
-		TEpochTime lateNightTime = gRealTime->GetEpochTimeFromComponents(year, month, day, 23, 0, 0);
+		TEpochTime lateNightTime = gRealTime->GetEpochTimeFromComponents(year, month, day, settings.turnOffHour, settings.turnOffMin, 0);
 
-		motionSensorTrip = false;
 		if(curTime > sunsetTime || curTime < sunriseTime)
 		{
 			if(lateNightTime < curTime || curTime < sunriseTime)
@@ -566,8 +581,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		DebugMsg(eDbgLevel_Basic, "time of day = %d\n", timeOfDay);
 
 		SetTransformerState(timeOfDay != eTimeOfDay_Day);
-		lightsOn = timeOfDay == eTimeOfDay_Night;
-		mode = eMode_Normal;
+		viewMode = eViewMode_Normal;
 	}
 
 	void
@@ -581,26 +595,19 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			switch(toggleCount)
 			{
 				case 1:
-					lightsOn = !lightsOn;
-					DebugMsg(eDbgLevel_Basic, "Toggle lights to %s\n", lightsOn ? "on" : "off");
-					mode = eMode_Normal;
+					toggleState = !toggleState;
+					DebugMsg(eDbgLevel_Basic, "Toggle state to %s\n", toggleState ? "on" : "off");
+					viewMode = eViewMode_Normal;
 
-					if(lightsOn)
-					{
-						SetTransformerState(true);
-						FindBasePattern();
-					}
+					FindBasePattern();
 
 					if(timeOfDay == eTimeOfDay_Day)
 					{
-						if(!lightsOn)
-						{
-							SetTransformerState(false);
-						}
+						SetTransformerState(toggleState);
 					}
 					else if(timeOfDay == eTimeOfDay_LateNight)
 					{
-						if(lightsOn)
+						if(toggleState)
 						{
 							gRealTime->RegisterEvent("LateNight", eLateNightTimeoutSecs * 1000000, true, this, static_cast<TRealTimeEventMethod>(&COutdoorLightingModule::LateNightTimerExpire), NULL);
 						}
@@ -613,15 +620,15 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 				case eCyclePatternsCount:
 					DebugMsg(eDbgLevel_Basic, "Entering pattern cycling\n");
-					mode = eMode_CyclePatterns;
-					lightsOn = true;
+					viewMode = eViewMode_CyclePatterns;
+					toggleState = true;
 					SetTransformerState(true);
 					break;
 
 				case eTestPatternCount:
 					DebugMsg(eDbgLevel_Basic, "Entering test pattern\n");
-					mode = eMode_TestPattern;
-					lightsOn = true;
+					viewMode = eViewMode_TestPattern;
+					toggleState = true;
 					SetTransformerState(true);
 					break;
 			}
@@ -636,13 +643,10 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			return;
 		}
 
-		float	normalizedBrightness = gLuminositySensor->GetNormalizedLux();
-		float	intensity = 1.0f - normalizedBrightness;
-
-		switch(mode)
+		switch(viewMode)
 		{
-			case eMode_Normal:
-				if(lightsOn || motionSensorTrip)
+			case eViewMode_Normal:
+				if(toggleState || (motionSensorTrip && timeOfDay != eTimeOfDay_Day))
 				{
 					if(basePattern != NULL)
 					{
@@ -652,9 +656,29 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 					{
 						for(uint32_t itr = 0; itr < eLEDCount; ++itr)
 						{
-							frameBuffer[itr].r = defaultColor.r;
-							frameBuffer[itr].g = defaultColor.g;
-							frameBuffer[itr].b = defaultColor.b;
+							frameBuffer[itr].r = settings.defaultColor.r;
+							frameBuffer[itr].g = settings.defaultColor.g;
+							frameBuffer[itr].b = settings.defaultColor.b;
+						}
+					}
+
+					float	intensity;
+
+					if(timeOfDay == eTimeOfDay_Day)
+					{
+						intensity = 1.0;
+					}
+					else
+					{
+						float	normalizedBrightness = gLuminositySensor->GetNormalizedLux();
+						intensity = 1.0f - normalizedBrightness;
+						if(toggleState || motionSensorTrip)
+						{
+							intensity *= settings.activeIntensity;
+						}
+						else
+						{
+							intensity *= settings.defaultIntensity;
 						}
 					}
 
@@ -662,7 +686,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 					for(uint32_t itr = 0; itr < eLEDCount; ++itr)
 					{
-						SetRoofPixel(itr, int(frameBuffer[itr].r * intensity * 255.0), int(frameBuffer[itr].g * intensity * 255.0), int(frameBuffer[itr].b * intensity * 255.0));
+						SetRoofPixel(itr, uint8_t(frameBuffer[itr].r * intensity * 255.0), uint8_t(frameBuffer[itr].g * intensity * 255.0), uint8_t(frameBuffer[itr].b * intensity * 255.0));
 					}
 				}
 				else
@@ -674,7 +698,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 				}
 				break;
 
-			case eMode_CyclePatterns:
+			case eViewMode_CyclePatterns:
 				if(gCurLocalMS - cyclePatternTimeMS >= eCyclePatternTime || basePattern == NULL)
 				{
 					DebugMsg(eDbgLevel_Verbose, "Cycling patterns\n");
@@ -688,7 +712,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 				}
 				break;
 
-			case eMode_TestPattern:
+			case eViewMode_TestPattern:
 				testPatternValue += cTestPatternPixelsPerSec * (float)inDeltaTimeUS / 1000000.0f;
 
 				if(testPatternValue >= eLEDCount * 2.0f)
@@ -700,8 +724,6 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 				int	indexR = intValue <  eLEDCount ? intValue : eLEDCount * 2 - intValue - 1;
 				int	indexG = (intValue - 1) <  eLEDCount ? (intValue - 1) : eLEDCount * 2 - (intValue - 1);
 				int	indexB = (intValue - 2) <  eLEDCount ? (intValue - 2)  : eLEDCount * 2 - (intValue - 2) ;
-
-				//DebugMsg(eDbgLevel_Basic, "%d %d %d %d\n", intValue, indexR, indexG, indexB);
 
 				for(int itr = 0; itr < eLEDCount; ++itr)
 				{
@@ -735,16 +757,16 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		DebugMsg(eDbgLevel_Basic, "Sunset\n");
 
 		timeOfDay = eTimeOfDay_Night;
+		toggleState = true;
 
 		// Turn on the transformer
 		SetTransformerState(true);
-		lightsOn = true;
 		FindBasePattern();
 
 		DebugMsg(eDbgLevel_Basic, "lux = %f\n", gLuminositySensor->GetActualLux());
 
-		duskStartTime = gRealTime->GetEpochTime(false);
-		gRealTime->RegisterEvent("DuskPeriodic", 15 * 60 * 1000000, false, this, static_cast<TRealTimeEventMethod>(&COutdoorLightingModule::DuskPeriodic), NULL);
+		duskStartTime = gRealTime->GetEpochTime(true);
+		gRealTime->RegisterEvent("DuskPeriodic", 5 * 60 * 1000000, false, this, static_cast<TRealTimeEventMethod>(&COutdoorLightingModule::DuskPeriodic), NULL);
 	}
 
 	void
@@ -752,7 +774,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		char const*	inName,
 		void*		inRef)
 	{
-		if(gRealTime->GetEpochTime(false) - duskStartTime > 60 * 60)
+		if(gRealTime->GetEpochTime(true) - duskStartTime > 60 * 60)
 		{
 			gRealTime->CancelEvent("DuskPeriodic");
 		}
@@ -770,7 +792,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 		// Turn off the transformer
 		SetTransformerState(false);
-		lightsOn = false;
+		toggleState = false;
 	}
 
 	bool
@@ -780,7 +802,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	{
 		DebugMsg(eDbgLevel_Basic, "Late Night Alarm\n");
 		timeOfDay = eTimeOfDay_LateNight;
-		lightsOn = false;
+		toggleState = false;
 		// Transformer is left on for motion trip
 		return true;	// return true to reschedule the alarm
 	}
@@ -791,7 +813,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		void*		inRef)
 	{
 		DebugMsg(eDbgLevel_Basic, "Late night timer expired\n");
-		lightsOn = false;
+		toggleState = false;
 	}
 
 	void
@@ -814,12 +836,6 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		EPinEvent	inEvent,
 		void*		inReference)
 	{
-		if(timeOfDay == eTimeOfDay_Day)
-		{
-			// Don't care about motion trips during the day
-			return;
-		}
-
 		if(inEvent == eDigitalIO_PinActivated)
 		{
 			DebugMsg(eDbgLevel_Basic, "Motion sensor tripped\n");
@@ -844,7 +860,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	}
 	
 	bool
-	ForceOnOff(
+	SetToggleState(
 		int			inArgC,
 		char const*	inArgv[])
 	{
@@ -855,23 +871,23 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 		if(strcmp(inArgv[1], "on") == 0)
 		{
-			lightsOn = true;
+			toggleState = true;
 		}
 		else if(strcmp(inArgv[1], "off") == 0)
 		{
-			lightsOn = false;
+			toggleState = false;
 		}
 		else
 		{
 			return false;
 		}
 
-		mode = eMode_Normal;
+		viewMode = eViewMode_Normal;
 		FindBasePattern();
 
 		if(timeOfDay == eTimeOfDay_Day)
 		{
-			SetTransformerState(lightsOn);
+			SetTransformerState(toggleState);
 		}
 
 		return true;
@@ -890,8 +906,8 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		if(strcmp(inArgv[1], "on") == 0)
 		{
 			SetTransformerState(true);
-			lightsOn = true;
-			mode = eMode_TestPattern;
+			toggleState = true;
+			viewMode = eViewMode_TestPattern;
 			return true;
 		}
 		else if(strcmp(inArgv[1], "off") == 0)
@@ -900,14 +916,14 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			{
 				SetTransformerState(false);
 			}
-			lightsOn = false;
-			mode = eMode_Normal;
+			toggleState = false;
+			viewMode = eViewMode_Normal;
 			return true;
 		}
 
 		return false;
 	}
-
+	
 	bool
 	SetColor(
 		int			inArgC,
@@ -918,11 +934,79 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			return false;
 		}
 
-		defaultColor.r = atof(inArgv[1]);
-		defaultColor.g = atof(inArgv[2]);
-		defaultColor.b = atof(inArgv[3]);
+		settings.defaultColor.r = atof(inArgv[1]);
+		settings.defaultColor.g = atof(inArgv[2]);
+		settings.defaultColor.b = atof(inArgv[3]);
 
-		WriteDataToEEPROM(&defaultColor, eepromOffset, sizeof(defaultColor));
+		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+
+		return true;
+	}
+	
+	bool
+	GetColor(
+		int			inArgC,
+		char const*	inArgv[])
+	{
+		Serial.printf("%f %f %f\n", settings.defaultColor.r, settings.defaultColor.g, settings.defaultColor.b);
+
+		return true;
+	}
+
+	bool
+	SetIntensity(
+		int			inArgC,
+		char const*	inArgv[])
+	{
+		if(inArgC != 3)
+		{
+			return false;
+		}
+
+		settings.defaultIntensity = atof(inArgv[1]);
+		settings.activeIntensity = atof(inArgv[2]);
+
+		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+
+		return true;
+	}
+
+	bool
+	GetIntensity(
+		int			inArgC,
+		char const*	inArgv[])
+	{
+		Serial.printf("%f %f\n", settings.defaultIntensity, settings.activeIntensity);
+
+		return true;
+	}
+
+	bool
+	SetOffTime(
+		int			inArgC,
+		char const*	inArgv[])
+	{
+		if(inArgC != 3)
+		{
+			return false;
+		}
+
+		settings.turnOffHour = atoi(inArgv[1]);
+		settings.turnOffMin = atoi(inArgv[2]);
+
+		gRealTime->RegisterAlarm("LateNightAlarm", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, settings.turnOffHour, settings.turnOffMin, 0, this, static_cast<TRealTimeAlarmMethod>(&COutdoorLightingModule::LateNightAlarm), NULL);
+
+		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+
+		return true;
+	}
+
+	bool
+	GetOffTime(
+		int			inArgC,
+		char const*	inArgv[])
+	{
+		Serial.printf("%02d:%02d\n", settings.turnOffHour, settings.turnOffMin);
 
 		return true;
 	}
@@ -1003,9 +1087,9 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	OctoWS2811	leds;
 	IRealTimeDataProvider*	ds3234Provider;
 	
-	uint8_t		mode;
+	uint8_t		viewMode;
 	uint8_t		timeOfDay;
-	bool		lightsOn;
+	bool		toggleState;
 	bool		motionSensorTrip;
 	bool		curTransformerState;
 	bool		curTransformerTransitionState;
@@ -1019,12 +1103,11 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	int			cyclePatternCount;
 	float		testPatternValue;
 
-	SFloatPixel	defaultColor;
+	SSettings	settings;
 
 	TEpochTime	duskStartTime;
 
 	static COutdoorLightingModule	gOutdoorLightingModule;
-
 };
 
 COutdoorLightingModule	COutdoorLightingModule::gOutdoorLightingModule;
