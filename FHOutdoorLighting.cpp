@@ -551,9 +551,10 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		// Check on the toggle button
 		if(gCurLocalMS - toggleLastTimeMS >= eToggleCountResetMS && toggleCount > 0)
 		{
-			motionSensorTrip = false;
-
 			// It has timed out so now check the toggle count for the action
+
+			motionSensorTrip = false;	// Ensure motion trip is off
+
 			switch(toggleCount)
 			{
 				case ePushCount_ToggleState:
@@ -833,7 +834,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 			if(timeOfDay != eTimeOfDay_Day)
 			{
-				// Set an event for eMotionTripLightsOffMins mins from now
+				// Set an event for settings.motionTripTimeoutMins mins from now
 				gRealTime->RegisterEvent("MotionTripCD", settings.motionTripTimeoutMins * 60 * 1000000, true, this, static_cast<TRealTimeEventMethod>(&COutdoorLightingModule::MotionTripCooldown), NULL);
 			}
 			else
