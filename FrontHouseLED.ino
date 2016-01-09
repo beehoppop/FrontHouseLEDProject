@@ -33,7 +33,6 @@
 #include <EEPROM.h>
 #include <FlexCAN.h>
 #include <OctoWS2811.h>
-#include <SparkFunTSL2561.h>
 #include <Wire.h>
 #include <SPI.h>
 
@@ -43,7 +42,7 @@ void
 setup(
 	void)
 {
-	CModule::SetupAll(false);
+	CModule::SetupAll("v0.2", false);
 }
 
 void

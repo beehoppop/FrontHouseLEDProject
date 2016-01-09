@@ -43,7 +43,52 @@
 #include <ELLuminositySensor.h>
 #include <ELUtilities.h>
 
-#include <OctoWS2811.h>
+#if defined(WIN32)
+// for testing
+	#define DMAMEM
+	#define WS2811_RGB 1
+
+	class OctoWS2811
+	{
+	public:
+		
+		OctoWS2811(
+			int		inCount,
+			int*	inDisplay,
+			int*	inDraw,
+			int		inFlags)
+		{
+
+		}
+
+		void
+		begin(
+			void)
+		{
+
+		}
+
+		void
+		show(
+			void)
+		{
+
+		}
+
+		void
+		setPixel(
+			int	inIndex,
+			uint8_t	inR,
+			uint8_t	inG,
+			uint8_t	inB)
+		{
+
+		}
+	};
+
+#else
+	#include <OctoWS2811.h>
+#endif
 
 enum
 {
@@ -287,15 +332,15 @@ public:
 		{
 			if(((itr / eLEDsPerPanel) & 1) == 0)
 			{
-				inPixelMem[itr].r = 1.0;
-				inPixelMem[itr].g = 0.65;
-				inPixelMem[itr].b = 0.0;
+				inPixelMem[itr].r = 1.0f;
+				inPixelMem[itr].g = 0.65f;
+				inPixelMem[itr].b = 0.0f;
 			}
 			else
 			{
-				inPixelMem[itr].r = 0.5;
-				inPixelMem[itr].g = 0.0;
-				inPixelMem[itr].b = 0.5;
+				inPixelMem[itr].r = 0.5f;
+				inPixelMem[itr].g = 0.0f;
+				inPixelMem[itr].b = 0.5f;
 			}
 		}
 	}
@@ -323,9 +368,9 @@ public:
 	{
 		for(int itr = 0; itr < inPixels; ++itr)
 		{
-			inPixelMem[itr].r = 0.0;
-			inPixelMem[itr].g = 1.0;
-			inPixelMem[itr].b = 0.0;
+			inPixelMem[itr].r = 0.0f;
+			inPixelMem[itr].g = 1.0f;
+			inPixelMem[itr].b = 0.0f;
 		}
 	}
 };
@@ -392,45 +437,45 @@ public:
 			int	primaryColor = (itr / eLEDsPerPanel) % 7;
 			if(primaryColor == 0)
 			{
-				inPixelMem[itr].r = 1.0;
-				inPixelMem[itr].g = 1.0;
-				inPixelMem[itr].b = 0.0;
+				inPixelMem[itr].r = 1.0f;
+				inPixelMem[itr].g = 1.0f;
+				inPixelMem[itr].b = 0.0f;
 			}
 			else if(primaryColor == 1)
 			{
-				inPixelMem[itr].r = 0.5;
-				inPixelMem[itr].g = 0.0;
-				inPixelMem[itr].b = 0.5;
+				inPixelMem[itr].r = 0.5f;
+				inPixelMem[itr].g = 0.0f;
+				inPixelMem[itr].b = 0.5f;
 			}
 			else if(primaryColor == 2)
 			{
-				inPixelMem[itr].r = 1.0;
-				inPixelMem[itr].g = 0.0;
-				inPixelMem[itr].b = 0.0;
+				inPixelMem[itr].r = 1.0f;
+				inPixelMem[itr].g = 0.0f;
+				inPixelMem[itr].b = 0.0f;
 			}
 			else if(primaryColor == 3)
 			{
-				inPixelMem[itr].r = 0.0;
-				inPixelMem[itr].g = 1.0;
-				inPixelMem[itr].b = 0.0;
+				inPixelMem[itr].r = 0.0f;
+				inPixelMem[itr].g = 1.0f;
+				inPixelMem[itr].b = 0.0f;
 			}
 			else if(primaryColor == 4)
 			{
-				inPixelMem[itr].r = 0.0;
-				inPixelMem[itr].g = 0.0;
-				inPixelMem[itr].b = 1.0;
+				inPixelMem[itr].r = 0.0f;
+				inPixelMem[itr].g = 0.0f;
+				inPixelMem[itr].b = 1.0f;
 			}
 			else if(primaryColor == 5)
 			{
-				inPixelMem[itr].r = 1.0;
-				inPixelMem[itr].g = 0.41;
-				inPixelMem[itr].b = 0.71;
+				inPixelMem[itr].r = 1.0f;
+				inPixelMem[itr].g = 0.41f;
+				inPixelMem[itr].b = 0.71f;
 			}
 			else
 			{
-				inPixelMem[itr].r = 1.0;
-				inPixelMem[itr].g = 0.65;
-				inPixelMem[itr].b = 0.0;
+				inPixelMem[itr].r = 1.0f;
+				inPixelMem[itr].g = 0.65f;
+				inPixelMem[itr].b = 0.0f;
 			}
 		}
 	}
@@ -448,6 +493,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			"otdr",
 			sizeof(SSettings),
 			0,
+			&settings,
 			30000),
 		leds(eLEDsPerStrip, gLEDDisplayMemory, gLEDDrawingMemory, WS2811_RGB)
 	{
@@ -475,8 +521,6 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		// Configure the time provider on the standard SPI chip select pin
 		ds3234Provider = gRealTime->CreateDS3234Provider(10);
 		gRealTime->SetProvider(ds3234Provider, 24 * 60 * 60);
-
-		LoadDataFromEEPROM(&settings, eepromOffset, sizeof(settings));
 
 		// Register the alarms, events, and commands
 		gSunRiseAndSet->RegisterSunsetEvent("Sunset1", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, this, static_cast<TSunRiseAndSetEventMethod>(&COutdoorLightingModule::Sunset));
@@ -926,11 +970,11 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			return false;
 		}
 
-		settings.defaultColor.r = atof(inArgv[1]);
-		settings.defaultColor.g = atof(inArgv[2]);
-		settings.defaultColor.b = atof(inArgv[3]);
+		settings.defaultColor.r = (float)atof(inArgv[1]);
+		settings.defaultColor.g = (float)atof(inArgv[2]);
+		settings.defaultColor.b = (float)atof(inArgv[3]);
 
-		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+		EEPROMSave();
 
 		return true;
 	}
@@ -955,10 +999,10 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			return false;
 		}
 
-		settings.defaultIntensity = atof(inArgv[1]);
-		settings.activeIntensity = atof(inArgv[2]);
+		settings.defaultIntensity = (float)atof(inArgv[1]);
+		settings.activeIntensity = (float)atof(inArgv[2]);
 
-		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+		EEPROMSave();
 
 		return true;
 	}
@@ -985,10 +1029,10 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 		settings.turnOffHour = atoi(inArgv[1]);
 		settings.turnOffMin = atoi(inArgv[2]);
-
+		
 		gRealTime->RegisterAlarm("LateNightAlarm", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, settings.turnOffHour, settings.turnOffMin, 0, this, static_cast<TRealTimeAlarmMethod>(&COutdoorLightingModule::LateNightAlarm), NULL);
 
-		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+		EEPROMSave();
 
 		return true;
 	}
@@ -1013,10 +1057,10 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 			return false;
 		}
 
-		settings.minLux = atof(inArgv[1]);
-		settings.maxLux = atof(inArgv[2]);
+		settings.minLux = (float)atof(inArgv[1]);
+		settings.maxLux = (float)atof(inArgv[2]);
 
-		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+		EEPROMSave();
 
 		return true;
 	}
@@ -1043,7 +1087,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 		settings.motionTripTimeoutMins = atoi(inArgv[1]);
 
-		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+		EEPROMSave();
 
 		return true;
 	}
@@ -1070,7 +1114,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 		settings.lateNightTimeoutMins = atoi(inArgv[1]);
 
-		WriteDataToEEPROM(&settings, eepromOffset, sizeof(settings));
+		EEPROMSave();
 
 		return true;
 	}
