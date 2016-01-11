@@ -543,6 +543,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		gSerialCmd->RegisterCommand("set_latenightTO", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetLateNightTimeout));
 		gSerialCmd->RegisterCommand("get_latenightTO", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetLateNightTimeout));
 
+		gLuminositySensor->SetEnabledState(true);
 		gLuminositySensor->SetMinMaxLux(settings.minLux, settings.maxLux, false);
 
 		leds.begin();

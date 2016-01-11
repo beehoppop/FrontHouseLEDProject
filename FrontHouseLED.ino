@@ -42,7 +42,7 @@ void
 setup(
 	void)
 {
-	CModule::SetupAll("v0.2", false);
+	CModule::SetupAll("v0.2", true);
 }
 
 void
