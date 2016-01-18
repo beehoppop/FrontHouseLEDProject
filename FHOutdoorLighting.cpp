@@ -483,7 +483,7 @@ public:
 static CEasterPattern	gEasterPattern;
 
 // This defines our main module
-class COutdoorLightingModule : public CModule, public IRealTimeHandler, public ISunRiseAndSetEventHandler, public IDigitalIOEventHandler, public ISerialCmdHandler
+class COutdoorLightingModule : public CModule, public IRealTimeHandler, public ISunRiseAndSetEventHandler, public IDigitalIOEventHandler, public ICmdHandler
 {
 	
 	COutdoorLightingModule(
@@ -528,20 +528,20 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 		gRealTime->RegisterAlarm("LateNightAlarm", eAlarm_Any, eAlarm_Any, eAlarm_Any, eAlarm_Any, settings.turnOffHour, settings.turnOffMin, 0, this, static_cast<TRealTimeAlarmMethod>(&COutdoorLightingModule::LateNightAlarm), NULL);
 		gDigitalIO->RegisterEventHandler(eToggleButtonPin, false, this, static_cast<TDigitalIOEventMethod>(&COutdoorLightingModule::ButtonPush), NULL, 100);
 		gDigitalIO->RegisterEventHandler(eMotionSensorPin, false, this, static_cast<TDigitalIOEventMethod>(&COutdoorLightingModule::MotionSensorTrigger), NULL);
-		gSerialCmd->RegisterCommand("set_toggle", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetToggleState));
-		gSerialCmd->RegisterCommand("test_pattern", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::TestPattern));
-		gSerialCmd->RegisterCommand("set_color", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetColor));
-		gSerialCmd->RegisterCommand("get_color", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetColor));
-		gSerialCmd->RegisterCommand("set_intensity", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetIntensity));
-		gSerialCmd->RegisterCommand("get_intensity", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetIntensity));
-		gSerialCmd->RegisterCommand("set_offtime", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetOffTime));
-		gSerialCmd->RegisterCommand("get_offtime", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetOffTime));
-		gSerialCmd->RegisterCommand("set_luxminmax", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetMinMaxLux));
-		gSerialCmd->RegisterCommand("get_luxminmax", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetMinMaxLux));
-		gSerialCmd->RegisterCommand("set_motionTO", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetMotionTripTimeout));
-		gSerialCmd->RegisterCommand("get_motionTO", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetMotionTripTimeout));
-		gSerialCmd->RegisterCommand("set_latenightTO", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::SetLateNightTimeout));
-		gSerialCmd->RegisterCommand("get_latenightTO", this, static_cast<TSerialCmdMethod>(&COutdoorLightingModule::GetLateNightTimeout));
+		gCmd->RegisterCommand("set_toggle", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetToggleState));
+		gCmd->RegisterCommand("test_pattern", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::TestPattern));
+		gCmd->RegisterCommand("set_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetColor));
+		gCmd->RegisterCommand("get_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetColor));
+		gCmd->RegisterCommand("set_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetIntensity));
+		gCmd->RegisterCommand("get_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetIntensity));
+		gCmd->RegisterCommand("set_offtime", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetOffTime));
+		gCmd->RegisterCommand("get_offtime", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetOffTime));
+		gCmd->RegisterCommand("set_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetMinMaxLux));
+		gCmd->RegisterCommand("get_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetMinMaxLux));
+		gCmd->RegisterCommand("set_motionTO", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetMotionTripTimeout));
+		gCmd->RegisterCommand("get_motionTO", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetMotionTripTimeout));
+		gCmd->RegisterCommand("set_latenightTO", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetLateNightTimeout));
+		gCmd->RegisterCommand("get_latenightTO", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetLateNightTimeout));
 
 		gLuminositySensor->SetEnabledState(true);
 		gLuminositySensor->SetMinMaxLux(settings.minLux, settings.maxLux, false);
@@ -900,8 +900,9 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	
 	bool
 	SetToggleState(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 2)
 		{
@@ -934,8 +935,9 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 	bool
 	TestPattern(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 2)
 		{
@@ -963,8 +965,9 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	
 	bool
 	SetColor(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 4)
 		{
@@ -982,18 +985,20 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 	
 	bool
 	GetColor(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
-		Serial.printf("%f %f %f\n", settings.defaultColor.r, settings.defaultColor.g, settings.defaultColor.b);
+		inOutput->printf("%f %f %f\n", settings.defaultColor.r, settings.defaultColor.g, settings.defaultColor.b);
 
 		return true;
 	}
 
 	bool
 	SetIntensity(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 3)
 		{
@@ -1010,18 +1015,20 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 	bool
 	GetIntensity(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
-		Serial.printf("%f %f\n", settings.defaultIntensity, settings.activeIntensity);
+		inOutput->printf("%f %f\n", settings.defaultIntensity, settings.activeIntensity);
 
 		return true;
 	}
 
 	bool
 	SetOffTime(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 3)
 		{
@@ -1040,18 +1047,20 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 	bool
 	GetOffTime(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
-		Serial.printf("%02d:%02d\n", settings.turnOffHour, settings.turnOffMin);
+		inOutput->printf("%02d:%02d\n", settings.turnOffHour, settings.turnOffMin);
 
 		return true;
 	}
 
 	bool
 	SetMinMaxLux(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 3)
 		{
@@ -1068,18 +1077,20 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 	bool
 	GetMinMaxLux(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
-		Serial.printf("%f %f\n", settings.minLux, settings.maxLux);
+		inOutput->printf("%f %f\n", settings.minLux, settings.maxLux);
 
 		return true;
 	}
 
 	bool
 	SetMotionTripTimeout(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 2)
 		{
@@ -1095,18 +1106,20 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 	bool
 	GetMotionTripTimeout(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
-		Serial.printf("%d\n", settings.motionTripTimeoutMins);
+		inOutput->printf("%d\n", settings.motionTripTimeoutMins);
 
 		return true;
 	}
 
 	bool
 	SetLateNightTimeout(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
 		if(inArgC != 2)
 		{
@@ -1122,10 +1135,11 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 
 	bool
 	GetLateNightTimeout(
-		int			inArgC,
-		char const*	inArgv[])
+		IOutputDirector*	inOutput,
+		int					inArgC,
+		char const*			inArgv[])
 	{
-		Serial.printf("%d\n", settings.lateNightTimeoutMins);
+		inOutput->printf("%d\n", settings.lateNightTimeoutMins);
 
 		return true;
 	}
