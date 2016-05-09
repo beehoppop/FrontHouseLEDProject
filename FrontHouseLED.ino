@@ -35,13 +35,40 @@
 #include <OctoWS2811.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <XPT2046_Touchscreen.h>
 
+#include <ELAssert.h>
 #include <ELModule.h>
+#include <ELInternet.h>
+#include <ELRealTime.h>
+#include <ELCommand.h>
+#include <ELUtilities.h>
+#include <ELSunRiseAndSet.h>
+#include <ELDigitalIO.h>
+#include <ELLuminositySensor.h>
+
+void
+SetupFHOutdoorLighting(
+	void);
 
 void
 setup(
 	void)
 {
+	Serial.begin(115200);
+
+	//WaitForSerialPort();
+
+	new CModule_SerialCmdHandler();
+	new CModule_SysMsgCmdHandler();
+	new CModule_Internet();
+	new CModule_RealTime();
+	new CSunRiseAndSetModule();
+	new CModule_DigitalIO();
+	new CModule_LuminositySensor();
+
+	SetupFHOutdoorLighting();
+
 	CModule::SetupAll("v0.2", true);
 }
 
