@@ -63,9 +63,8 @@ setup(
 	new CModule_SysMsgCmdHandler();
 	new CModule_Internet();
 	new CModule_RealTime();
-	new CSunRiseAndSetModule();
+	new CModule_SunRiseAndSet();
 	new CModule_DigitalIO();
-	new CModule_LuminositySensor();
 
 	SetupFHOutdoorLighting();
 
