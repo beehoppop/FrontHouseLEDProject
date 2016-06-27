@@ -57,6 +57,7 @@ enum
 	eTransformerRelayPin = 1,		// This output pin controls the relay for the main power transformer to the leds
 	eToggleButtonPin = 22,			// This input pin is for a pushbutton that forces the leds on or off and can activate a test pattern and cycle through the holiday base patterns
 	eMotionSensorPin = 23,			// This pin is triggered by the external motion sensor
+	eESP8266ResetPint = 3,
 
 	ePanelCount = 10,				// This is the number of led panels that go across the roof soffit
 	eLEDsPerPanel = 38,				// This is the number of leds per panel
@@ -364,12 +365,15 @@ static CEasterPattern	gEasterPattern;
 class COutdoorLightingModule : public CModule, public IRealTimeHandler, public ISunRiseAndSetEventHandler, public IDigitalIOEventHandler, public ICmdHandler, public IInternetHandler, public IOutdoorLightingInterface
 {
 public:
+
+	MModuleSingleton_Declaration(COutdoorLightingModule)
+
+private:
 	
 	COutdoorLightingModule(
 		)
 		:
 		CModule(
-			"otdr",
 			sizeof(SSettings),
 			0,
 			&settings,
@@ -398,39 +402,45 @@ public:
 		ledsOn = false;
 		motionSensorTriggered = false;
 		timeOfDay = 0;
+
+		luminosityInterface = new CTSL2561Sensor(0x39, eGain_1X, eIntegrationTime_13_7ms);
+
+		// Include dependent modules
+
+		CModule_OutdoorLightingControl::Include(this, eMotionSensorPin, eTransformerRelayPin, eToggleButtonPin, luminosityInterface);
+		CModule_RealTime::Include();
+		CModule_Internet::Include();
+		CModule_Command::Include();
+		internetDevice = CModule_ESP8266::Include(&Serial1, eESP8266ResetPint);
+		CModule_Loggly*	loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
+		AddSysMsgHandler(loggly);
+
+		DoneIncluding();
 	}
 
 	void
 	Setup(
 		void)
 	{
-		luminosityInterface = new CTSL2561Sensor(0x39, eGain_1X, eIntegrationTime_13_7ms);
 		luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
-
-		new CModule_OutdoorLightingControl(this, eMotionSensorPin, eTransformerRelayPin, eToggleButtonPin, luminosityInterface);
 
 		// Configure the time provider on the standard SPI chip select pin
 		IRealTimeDataProvider*	ds3234Provider = gRealTime->CreateDS3234Provider(10);
 		gRealTime->SetProvider(ds3234Provider, 24 * 60 * 60);
 
 		// Instantiate the wireless networking device and configure it to server pages
-		IInternetDevice*	internetDevice = GetInternetDevice_ESP8266(&Serial1);
-		gInternet->SetInternetDevice(internetDevice);
-		gInternet->CommandServer_Start(8080);
-		gInternet->CommandServer_RegisterFrontPage(this, static_cast<TInternetServerPageMethod>(&COutdoorLightingModule::CommandHomePageHandler));
-
-		// Create the logging module and add it to the system message handler
-		CModule_Loggly*	loggly = new CModule_Loggly("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
-		AddSysMsgHandler(loggly);
+		gInternetModule->SetInternetDevice(internetDevice);
+		gInternetModule->CommandServer_Start(8080);
+		gInternetModule->CommandServer_RegisterFrontPage(this, static_cast<TInternetServerPageMethod>(&COutdoorLightingModule::CommandHomePageHandler));
 
 		// Register the commands
-		gCommand->RegisterCommand("test_pattern", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::TestPattern));
-		gCommand->RegisterCommand("set_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetColor));
-		gCommand->RegisterCommand("get_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetColor));
-		gCommand->RegisterCommand("set_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetIntensity));
-		gCommand->RegisterCommand("get_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetIntensity));
-		gCommand->RegisterCommand("set_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetMinMaxLux));
-		gCommand->RegisterCommand("get_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetMinMaxLux));
+		gCommandModule->RegisterCommand("test_pattern", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::TestPattern));
+		gCommandModule->RegisterCommand("set_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetColor));
+		gCommandModule->RegisterCommand("get_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetColor));
+		gCommandModule->RegisterCommand("set_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetIntensity));
+		gCommandModule->RegisterCommand("get_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetIntensity));
+		gCommandModule->RegisterCommand("set_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetMinMaxLux));
+		gCommandModule->RegisterCommand("get_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetMinMaxLux));
 
 		leds.begin();
 
@@ -807,15 +817,18 @@ public:
 	SSettings	settings;
 
 	ILuminosity*	luminosityInterface;
+	IInternetDevice*	internetDevice;
 
 	int		timeOfDay;
 	bool	ledsOn;
 	bool	motionSensorTriggered;
 };
 
+MModuleSingleton_Implementation(COutdoorLightingModule)
+
 void
 SetupFHOutdoorLighting(
 	void)
 {
-	new COutdoorLightingModule();
+	COutdoorLightingModule::Include();
 }
