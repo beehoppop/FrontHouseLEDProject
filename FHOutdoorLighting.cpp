@@ -366,7 +366,7 @@ class COutdoorLightingModule : public CModule, public IRealTimeHandler, public I
 {
 public:
 
-	MModuleSingleton_Declaration(COutdoorLightingModule)
+	MModule_Declaration(COutdoorLightingModule)
 
 private:
 	
@@ -407,15 +407,18 @@ private:
 
 		// Include dependent modules
 
-		CModule_OutdoorLightingControl::Include(this, eMotionSensorPin, eTransformerRelayPin, eToggleButtonPin, luminosityInterface);
+		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
+		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
+		IInternetDevice*		internetDevice = CModule_ESP8266::Include(&Serial1, eESP8266ResetPint);
+
 		CModule_RealTime::Include();
 		CModule_Internet::Include();
 		CModule_Command::Include();
-		internetDevice = CModule_ESP8266::Include(&Serial1, eESP8266ResetPint);
-		CModule_Loggly*	loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
-		AddSysMsgHandler(loggly);
+		CModule_OutdoorLightingControl::Include(this, eMotionSensorPin, eTransformerRelayPin, eToggleButtonPin, luminosityInterface);
 
-		DoneIncluding();
+		AddSysMsgHandler(loggly);
+		gRealTime->Configure(ds3234Provider, 24 * 60 * 60);
+		gInternetModule->Configure(internetDevice);
 	}
 
 	void
@@ -425,11 +428,8 @@ private:
 		luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
 
 		// Configure the time provider on the standard SPI chip select pin
-		IRealTimeDataProvider*	ds3234Provider = gRealTime->CreateDS3234Provider(10);
-		gRealTime->SetProvider(ds3234Provider, 24 * 60 * 60);
 
 		// Instantiate the wireless networking device and configure it to server pages
-		gInternetModule->SetInternetDevice(internetDevice);
 		gInternetModule->CommandServer_Start(8080);
 		gInternetModule->CommandServer_RegisterFrontPage(this, static_cast<TInternetServerPageMethod>(&COutdoorLightingModule::CommandHomePageHandler));
 
@@ -817,14 +817,14 @@ private:
 	SSettings	settings;
 
 	ILuminosity*	luminosityInterface;
-	IInternetDevice*	internetDevice;
 
 	int		timeOfDay;
 	bool	ledsOn;
 	bool	motionSensorTriggered;
 };
 
-MModuleSingleton_Implementation(COutdoorLightingModule)
+MModuleImplementation_Start(COutdoorLightingModule)
+MModuleImplementation_Finish(COutdoorLightingModule)
 
 void
 SetupFHOutdoorLighting(
