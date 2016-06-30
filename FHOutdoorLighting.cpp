@@ -431,16 +431,16 @@ private:
 
 		// Instantiate the wireless networking device and configure it to server pages
 		gInternetModule->CommandServer_Start(8080);
-		gInternetModule->CommandServer_RegisterFrontPage(this, static_cast<TInternetServerPageMethod>(&COutdoorLightingModule::CommandHomePageHandler));
+		MInternetRegisterFrontPage(COutdoorLightingModule::CommandHomePageHandler);
 
 		// Register the commands
-		gCommandModule->RegisterCommand("test_pattern", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::TestPattern));
-		gCommandModule->RegisterCommand("set_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetColor));
-		gCommandModule->RegisterCommand("get_color", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetColor));
-		gCommandModule->RegisterCommand("set_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetIntensity));
-		gCommandModule->RegisterCommand("get_intensity", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetIntensity));
-		gCommandModule->RegisterCommand("set_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::SetMinMaxLux));
-		gCommandModule->RegisterCommand("get_luxminmax", this, static_cast<TCmdHandlerMethod>(&COutdoorLightingModule::GetMinMaxLux));
+		MCommandRegister("test_pattern", COutdoorLightingModule::TestPattern, "");
+		MCommandRegister("set_color", COutdoorLightingModule::SetColor, "");
+		MCommandRegister("get_color", COutdoorLightingModule::GetColor, "");
+		MCommandRegister("set_intensity", COutdoorLightingModule::SetIntensity, "");
+		MCommandRegister("get_intensity", COutdoorLightingModule::GetIntensity, "");
+		MCommandRegister("set_luxminmax", COutdoorLightingModule::SetMinMaxLux, "");
+		MCommandRegister("get_luxminmax", COutdoorLightingModule::GetMinMaxLux, "");
 
 		leds.begin();
 
