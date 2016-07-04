@@ -409,7 +409,7 @@ private:
 
 		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
 		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
-		IInternetDevice*		internetDevice = CModule_ESP8266::Include(&Serial1, eESP8266ResetPint);
+		IInternetDevice*		internetDevice = CModule_ESP8266::Include(3, &Serial1, eESP8266ResetPint);
 
 		CModule_RealTime::Include();
 		CModule_Internet::Include();
