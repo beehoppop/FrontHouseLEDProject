@@ -54,10 +54,10 @@
 
 enum
 {
-	eTransformerRelayPin = 1,		// This output pin controls the relay for the main power transformer to the leds
-	eToggleButtonPin = 22,			// This input pin is for a pushbutton that forces the leds on or off and can activate a test pattern and cycle through the holiday base patterns
-	eMotionSensorPin = 23,			// This pin is triggered by the external motion sensor
-	eESP8266ResetPint = 3,
+	eTransformerRelayPin = 17,		// This output pin controls the relay for the main power transformer to the leds
+	eToggleButtonPin = 9,			// This input pin is for a pushbutton that forces the leds on or off and can activate a test pattern and cycle through the holiday base patterns
+	eMotionSensorPin = 22,			// This pin is triggered by the external motion sensor
+	eESP8266ResetPint = 23,
 
 	ePanelCount = 10,				// This is the number of led panels that go across the roof soffit
 	eLEDsPerPanel = 38,				// This is the number of leds per panel
@@ -407,7 +407,7 @@ private:
 
 		// Include dependent modules
 
-		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
+		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/XXX_YOUR_ID_HERE");
 		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
 		IInternetDevice*		internetDevice = CModule_ESP8266::Include(3, &Serial1, eESP8266ResetPint);
 
@@ -429,9 +429,9 @@ private:
 
 		// Configure the time provider on the standard SPI chip select pin
 
-		// Instantiate the wireless networking device and configure it to server pages
-		gInternetModule->CommandServer_Start(8080);
-		MInternetRegisterFrontPage(COutdoorLightingModule::CommandHomePageHandler);
+		// Instantiate the wireless networking device and configure it to serve pages
+		gInternetModule->WebServer_Start(8080);
+		MInternetRegisterPage("/", COutdoorLightingModule::CommandHomePageHandler);
 
 		// Register the commands
 		MCommandRegister("test_pattern", COutdoorLightingModule::TestPattern, "");
@@ -449,7 +449,9 @@ private:
 
 	void
 	CommandHomePageHandler(
-		IOutputDirector*	inOutput)
+		IOutputDirector*	inOutput,
+		int					inParamCount,
+		char const**		inParamList)
 	{
 		// Send html via in Output to add to the command server home page served to clients
 
@@ -460,13 +462,13 @@ private:
 		inOutput->printf("<tr><td>View Mode</td><td>%s</td></tr>", gViewModeStr[viewMode]);
 
 		// add settings.defaultColor
-		inOutput->printf("<tr><td>Default Color</td><td>r:%02.02f g:%02.02f b:%02.02f</td></tr>", settings.defaultColor.r, settings.defaultColor.g, settings.defaultColor.b);
+		inOutput->printf("<tr><td>Default Color</td><td>r:%01.02f g:%01.02f b:%01.02f</td></tr>", settings.defaultColor.r, settings.defaultColor.g, settings.defaultColor.b);
 
 		// add settings.defaultIntensity
-		inOutput->printf("<tr><td>Default Intensity</td><td>%02.02f</td></tr>", settings.defaultIntensity);
+		inOutput->printf("<tr><td>Default Intensity</td><td>%01.02f</td></tr>", settings.defaultIntensity);
 
 		// add settings.activeIntensity
-		inOutput->printf("<tr><td>Active Intensity</td><td>%02.02f</td></tr>", settings.activeIntensity);
+		inOutput->printf("<tr><td>Active Intensity</td><td>%01.02f</td></tr>", settings.activeIntensity);
 
 		// add settings.minLux, settings.maxLux
 		inOutput->printf("<tr><td>Lux Range</td><td>%f %f</td></tr>", settings.minLux, settings.maxLux);
