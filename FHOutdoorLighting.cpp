@@ -28,11 +28,6 @@
 	ABOUT
 
 	This is the main module for a front of house lighting project.
-
-	To a degree this follows the model view controller pattern. 
-	Model: The time of day(broken up into daytime, night, and late night), date, motion sensor state, luminosity, and a push button toggle state
-	View: The RGB value of each LED and the LED transformer state
-	Controller: Determines the view based on the model
 */
 
 #if !defined(WIN32)
@@ -127,6 +122,10 @@ public:
 	Draw(
 		int				inPixels,
 		SFloatPixel*	inPixelMem) = 0;
+
+	virtual char const*
+	GetName(
+		void) = 0;
 };
 
 // The various patterns are defined below
@@ -163,6 +162,13 @@ public:
 			}
 		}
 	}
+
+	virtual char const*
+	GetName(
+		void)
+	{
+		return "Christmas";
+	}
 };
 static CXMasPattern	gXMasPattern;
 
@@ -188,6 +194,13 @@ public:
 			inPixelMem[itr].g = 0.0;
 			inPixelMem[itr].b = 0.0;
 		}
+	}
+
+	virtual char const*
+	GetName(
+		void)
+	{
+		return "Valentine's Day";
 	}
 };
 static CValintinePattern	gValintinePattern;
@@ -231,14 +244,21 @@ public:
 			}
 		}
 	}
+
+	virtual char const*
+	GetName(
+		void)
+	{
+		return "4th Of July";
+	}
 };
 static CJuly4Pattern	gJuly4Pattern;
 
-class CHolloweenPattern : public CBasePattern
+class CHalloweenPattern : public CBasePattern
 {
 public:
 
-	CHolloweenPattern(
+	CHalloweenPattern(
 		)
 		:
 		CBasePattern()
@@ -266,8 +286,15 @@ public:
 			}
 		}
 	}
+
+	virtual char const*
+	GetName(
+		void)
+	{
+		return "Halloween";
+	}
 };
-static CHolloweenPattern	gHolloweenPattern;
+static CHalloweenPattern	gHalloweenPattern;
 
 class CStPattyPattern : public CBasePattern
 {
@@ -291,6 +318,13 @@ public:
 			inPixelMem[itr].g = 1.0f;
 			inPixelMem[itr].b = 0.0f;
 		}
+	}
+
+	virtual char const*
+	GetName(
+		void)
+	{
+		return "St. Patty's Day";
 	}
 };
 static CStPattyPattern	gStPattyPattern;
@@ -358,6 +392,13 @@ public:
 			}
 		}
 	}
+
+	virtual char const*
+	GetName(
+		void)
+	{
+		return "Easter";
+	}
 };
 static CEasterPattern	gEasterPattern;
 
@@ -393,7 +434,7 @@ private:
 		}
 
 		viewMode = 0;
-		memset(frameBuffer, 0, sizeof(0));
+		memset(frameBuffer, 0, sizeof(frameBuffer));
 		basePattern = NULL;
 		cyclePatternTimeMS = 0;
 		cyclePatternCount = 0;
@@ -404,12 +445,16 @@ private:
 		timeOfDay = 0;
 
 		luminosityInterface = new CTSL2561Sensor(0x39, eGain_1X, eIntegrationTime_13_7ms);
+		if(!luminosityInterface->IsPresent())
+		{
+			luminosityInterface = NULL;
+		}
 
 		// Include dependent modules
 
-		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/XXX_YOUR_ID_HERE");
+		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
 		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
-		IInternetDevice*		internetDevice = CModule_ESP8266::Include(3, &Serial1, eESP8266ResetPint);
+		IInternetDevice*		internetDevice = CModule_ESP8266::Include(5, &Serial1, eESP8266ResetPint);
 
 		CModule_RealTime::Include();
 		CModule_Internet::Include();
@@ -419,13 +464,17 @@ private:
 		AddSysMsgHandler(loggly);
 		gRealTime->Configure(ds3234Provider, 24 * 60 * 60);
 		gInternetModule->Configure(internetDevice);
+		ledsOn = false;
 	}
 
 	void
 	Setup(
 		void)
 	{
-		luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
+		if(luminosityInterface != NULL)
+		{
+			luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
+		}
 
 		// Configure the time provider on the standard SPI chip select pin
 
@@ -435,12 +484,12 @@ private:
 
 		// Register the commands
 		MCommandRegister("test_pattern", COutdoorLightingModule::TestPattern, "");
-		MCommandRegister("set_color", COutdoorLightingModule::SetColor, "");
-		MCommandRegister("get_color", COutdoorLightingModule::GetColor, "");
-		MCommandRegister("set_intensity", COutdoorLightingModule::SetIntensity, "");
-		MCommandRegister("get_intensity", COutdoorLightingModule::GetIntensity, "");
-		MCommandRegister("set_luxminmax", COutdoorLightingModule::SetMinMaxLux, "");
-		MCommandRegister("get_luxminmax", COutdoorLightingModule::GetMinMaxLux, "");
+		MCommandRegister("color_set", COutdoorLightingModule::SetColor, "");
+		MCommandRegister("color_get", COutdoorLightingModule::GetColor, "");
+		MCommandRegister("intensity_set", COutdoorLightingModule::SetIntensity, "[default] [active] : set the intensity levels");
+		MCommandRegister("intensity_get", COutdoorLightingModule::GetIntensity, "");
+		MCommandRegister("luxminmax_set", COutdoorLightingModule::SetMinMaxLux, "");
+		MCommandRegister("luxminmax_get", COutdoorLightingModule::GetMinMaxLux, "");
 
 		leds.begin();
 
@@ -457,6 +506,9 @@ private:
 
 		inOutput->printf("<table border=\"1\">");
 		inOutput->printf("<tr><th>Parameter</th><th>Value</th></tr>");
+
+		// add current holiday
+		inOutput->printf("<tr><td>Holiday</td><td>%s</td></tr>", basePattern != NULL ? basePattern->GetName() : "None");
 
 		// add viewMode
 		inOutput->printf("<tr><td>View Mode</td><td>%s</td></tr>", gViewModeStr[viewMode]);
@@ -489,6 +541,7 @@ private:
 			{
 				SetRoofPixel(itr, 0, 0, 0);
 			}
+			leds.show();
 		}
 		else
 		{
@@ -521,6 +574,7 @@ private:
 		}
 		else
 		{
+			SystemMsg("Entering normal mode\n");
 			viewMode = eViewMode_Normal;
 			gOutdoorLighting->SetOverride(false, false);
 		}
@@ -574,7 +628,8 @@ private:
 					}
 					else
 					{
-						intensity = (1.0f - luminosityInterface->GetNormalizedBrightness()) * settings.defaultIntensity;
+						float normalizedBrightness = luminosityInterface != NULL ? luminosityInterface->GetNormalizedBrightness() : 0.0f;
+						intensity = (1.0f - normalizedBrightness) * settings.defaultIntensity;
 					}
 				}
 
@@ -741,7 +796,10 @@ private:
 		settings.minLux = (float)atof(inArgv[1]);
 		settings.maxLux = (float)atof(inArgv[2]);
 
-		luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
+		if(luminosityInterface != NULL)
+		{
+			luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
+		}
 
 		EEPROMSave();
 
@@ -776,6 +834,13 @@ private:
 		{
 			EHoliday	curHoliday = GetHolidayForDate(year, month, day);
 
+			if(curHoliday == eHoliday_None)
+			{
+				// If today is not a holiday check if tomorrow is one
+				gRealTime->GetComponentsFromEpochTime(gRealTime->GetEpochTime(false) + 24 * 60 * 60, year, month, day, dow, hour, min, sec);
+				curHoliday = GetHolidayForDate(year, month, day);
+			}
+
 			switch(curHoliday)
 			{
 				case eHoliday_ValintinesDay:
@@ -795,13 +860,15 @@ private:
 					break;
 
 				case eHoliday_Holloween:
-					basePattern = &gHolloweenPattern;
+					basePattern = &gHalloweenPattern;
 					break;
 
 				default:
 					basePattern = NULL;
 			}
 		}
+
+		SystemMsg("Setting pattern to %s", basePattern == NULL ? "None" : basePattern->GetName());
 	}
 
 	OctoWS2811	leds;

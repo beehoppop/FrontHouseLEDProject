@@ -59,8 +59,6 @@ setup(
 
 	//WaitForSerialPort();
 
-	Serial.printf("free=%lu\n", GetFreeMemory());
-
 	CModule_SysMsgSerialHandler::Include();
 	CModule_SerialCmdHandler::Include();
 	CModule_SysMsgCmdHandler::Include();
@@ -68,6 +66,8 @@ setup(
 	SetupFHOutdoorLighting();
 
 	CModule::SetupAll("v0.2", true);
+
+	Serial.printf("free=%lu\n", GetFreeMemory());
 }
 
 void
