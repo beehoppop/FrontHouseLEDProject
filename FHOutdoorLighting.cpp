@@ -52,7 +52,7 @@ enum
 	eTransformerRelayPin = 17,		// This output pin controls the relay for the main power transformer to the leds
 	eToggleButtonPin = 9,			// This input pin is for a pushbutton that forces the leds on or off and can activate a test pattern and cycle through the holiday base patterns
 	eMotionSensorPin = 22,			// This pin is triggered by the external motion sensor
-	eESP8266ResetPint = 23,
+	eESP8266ResetPin = 23,
 
 	ePanelCount = 10,				// This is the number of led panels that go across the roof soffit
 	eLEDsPerPanel = 38,				// This is the number of leds per panel
@@ -70,7 +70,6 @@ enum
 	eCyclePatternTime = 4000,	// The duration in ms for each holiday base pattern when cycling
 
 	eMaxPatternCount = 10,
-
 };
 
 enum
@@ -452,9 +451,9 @@ private:
 
 		// Include dependent modules
 
-		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house", "logs-01.loggly.com", "/inputs/568b321d-0d6f-47d3-ac34-4a36f4125612");
+		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house");
 		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
-		IInternetDevice*		internetDevice = CModule_ESP8266::Include(5, &Serial1, eESP8266ResetPint);
+		IInternetDevice*		internetDevice = CModule_ESP8266::Include(5, &Serial1, eESP8266ResetPin);
 
 		CModule_RealTime::Include();
 		CModule_Internet::Include();
@@ -557,6 +556,12 @@ private:
 	}
 
 	virtual void
+	LuxSensorStateChange(
+		bool	inTriggered)
+	{
+	}
+
+	virtual void
 	PushButtonStateChange(
 		int	inToggleCount)
 	{
@@ -626,10 +631,13 @@ private:
 					{
 						intensity = settings.activeIntensity;
 					}
+					else if(luminosityInterface != NULL)
+					{
+						intensity = (1.0f - gOutdoorLighting->GetAvgBrightness()) * settings.defaultIntensity;
+					}
 					else
 					{
-						float normalizedBrightness = luminosityInterface != NULL ? luminosityInterface->GetNormalizedBrightness() : 0.0f;
-						intensity = (1.0f - normalizedBrightness) * settings.defaultIntensity;
+						intensity = settings.defaultIntensity;
 					}
 				}
 
