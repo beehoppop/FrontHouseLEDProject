@@ -421,7 +421,7 @@ private:
 		leds(eLEDsPerStrip, gLEDDisplayMemory, NULL, WS2811_RGB)
 	{
 		// Create a map of indices going from the left side of the house (facing it) to the right side
-		// This allows use to address the LEDs in linear order left to right given that the octo layout is by strip
+		// This allows us to address the LEDs in linear order left to right given that the octo layout is by strip
 		for(int i = 0; i < eLEDPanelsCenterToLeft * eLEDsPerPanel; ++i)
 		{
 			gLEDMap[i] = eLEDStripCenterToLeft * eLEDsPerStrip + eLEDPanelsCenterToLeft * eLEDsPerPanel - i - 1;
@@ -453,15 +453,16 @@ private:
 
 		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house");
 		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
-		IInternetDevice*		internetDevice = CModule_ESP8266::Include(5, &Serial1, eESP8266ResetPin);
+		IRealTimeDataProvider*	networkProvider = CreateTimeAPIDotOrgProvider();
+		IInternetDevice*		internetDevice = CModule_ESP8266::Include(&Serial1, eESP8266ResetPin);
 
 		CModule_RealTime::Include();
 		CModule_Internet::Include();
 		CModule_Command::Include();
-		CModule_OutdoorLightingControl::Include(this, eMotionSensorPin, eTransformerRelayPin, eToggleButtonPin, luminosityInterface);
+		CModule_OutdoorLightingControl::Include(this, false, eMotionSensorPin, eTransformerRelayPin, eToggleButtonPin, luminosityInterface);
 
 		AddSysMsgHandler(loggly);
-		gRealTime->Configure(ds3234Provider, 24 * 60 * 60);
+		gRealTime->Configure(ds3234Provider, networkProvider, 1 * 60 * 60);
 		gInternetModule->Configure(internetDevice);
 		ledsOn = false;
 	}
@@ -472,7 +473,12 @@ private:
 	{
 		if(luminosityInterface != NULL)
 		{
+			SystemMsg("Luminosity sensor present");
 			luminosityInterface->SetMinMaxLux(settings.minLux, settings.maxLux);
+		}
+		else
+		{
+			SystemMsg("Luminosity sensor missing");
 		}
 
 		// Configure the time provider on the standard SPI chip select pin
@@ -502,7 +508,6 @@ private:
 		char const**		inParamList)
 	{
 		// Send html via in Output to add to the command server home page served to clients
-
 		inOutput->printf("<table border=\"1\">");
 		inOutput->printf("<tr><th>Parameter</th><th>Value</th></tr>");
 
@@ -867,7 +872,7 @@ private:
 					basePattern = &gJuly4Pattern;
 					break;
 
-				case eHoliday_Holloween:
+				case eHoliday_Halloween:
 					basePattern = &gHalloweenPattern;
 					break;
 
