@@ -51,6 +51,7 @@ enum
 {
 	eTransformerRelayPin = 17,		// This output pin controls the relay for the main power transformer to the leds
 	eToggleButtonPin = 9,			// This input pin is for a pushbutton that forces the leds on or off and can activate a test pattern and cycle through the holiday base patterns
+	eRTCChipSelect = 10,
 	eMotionSensorPin = 22,			// This pin is triggered by the external motion sensor
 	eESP8266ResetPin = 23,
 
@@ -452,8 +453,8 @@ private:
 		// Include dependent modules
 
 		CModule_Loggly*			loggly = CModule_Loggly::Include("front_house");
-		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(10);
-		IRealTimeDataProvider*	networkProvider = CreateTimeAPIDotOrgProvider();
+		IRealTimeDataProvider*	ds3234Provider = CreateDS3234Provider(eRTCChipSelect);
+		IRealTimeDataProvider*	networkProvider = CreateNTPProvider("2.us.pool.ntp.org", 123);
 		IInternetDevice*		internetDevice = CModule_ESP8266::Include(&Serial1, eESP8266ResetPin);
 
 		CModule_RealTime::Include();
